@@ -25,6 +25,7 @@ These scripts integrate multiple bioinformatics tools and are optimized for effi
 - [Arguments](#arguments)
 - [Outputs](#outputs)
 - [Example Commands](#example-commands)
+- [Batch Processing with Wrapper Script](#batch-processing-with-wrapper-script)
 - [Genome-wide Correlation Analysis](#genome-wide-correlation-analysis)
 - [Environment Setup](#environment-setup)
 - [Dependencies](#dependencies)
