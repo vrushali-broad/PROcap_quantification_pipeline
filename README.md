@@ -70,6 +70,36 @@ python PROcap_processing_pipeline.py \
 - **Merged BAM files**: If multiple replicates are provided.
 - **STAR indices**: Genome reference indices for alignment.
 
+---
+
+# Genome-wide Correlation Analysis of BigWig Files
+
+## Overview
+This script calculates and visualizes genome-wide correlation between two BigWig files. It bins the genomic data, extracts values, and computes a correlation scatter plot. Multi-processing is used to speed up the per-chromosome binning process.
+
+## Features
+- Reads chromosome sizes from an input file.
+- Extracts signal values from BigWig files in non-overlapping bins.
+- Computes Pearson correlation between log-transformed values.
+- Generates a scatter plot with a 45-degree reference line.
+- Utilizes multiprocessing to speed up processing.
+
+## Usage
+Run the script as follows:
+```sh
+python procap_correlation.py -f1 file1.bw -f2 file2.bw --bin_size 1000 --chrom_sizes_file chrom.sizes
+```
+
+## Dependencies
+- **Python 3.7+**
+- **Required Libraries**:
+  - pyBigWig, numpy, matplotlib, argparse, multiprocessing, tqdm, scipy, logging
+
+## Outputs
+- **Scatter plot**: Displays correlation between two BigWig files.
+- **Pearson correlation coefficient**: Measures the strength of association between signals.
+
+
 ## Notes
 - Ensure all required tools and Python libraries are installed before running the script.
 - Intermediate files can be removed using the cleanup functionality.
