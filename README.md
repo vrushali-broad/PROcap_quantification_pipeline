@@ -1,5 +1,3 @@
-# PROcap_quantification_pipeline
-
 # PRO-Cap Quantification Pipeline
 
 ## Author
@@ -63,6 +61,7 @@ python PROcap_processing_pipeline.py \
 | `-u`, `--umi_length` | Length of UMI to extract. (Default: `6`) |
 | `-t`, `--threads` | Number of threads to use. (Default: `48`) |
 | `--spike_ins` | Include spike-in references (e.g., Drosophila genome). |
+| `--run_pints_preprocess` | Run PINTS visualizer on processed BAM files. |
 
 ## Outputs
 - **BigWig files**: 5' and 3' strand-specific transcription site data.
@@ -75,5 +74,5 @@ python PROcap_processing_pipeline.py \
 - Ensure all required tools and Python libraries are installed before running the script.
 - Intermediate files can be removed using the cleanup functionality.
 
-For further details, please contact **YuLab, Cornell University**.
+For further details, please contact **Vrushali D. Fangal at YuLab, Cornell University**.
 
