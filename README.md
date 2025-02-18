@@ -112,7 +112,7 @@ python PROcap_processing_pipeline.py \
 | `--run_pints_preprocess` | Run PINTS Visualizer for processed BAM files. |
 
 ---
-Outputs
+## **Outputs**
 
 BigWig files: 5' and 3' strand-specific transcription site data.
 
