@@ -112,7 +112,19 @@ python PROcap_processing_pipeline.py \
 | `--run_pints_preprocess` | Run PINTS Visualizer for processed BAM files. |
 
 ---
+Outputs
 
+BigWig files: 5' and 3' strand-specific transcription site data.
+
+Quality reports: FastQC reports for raw and trimmed reads.
+
+Processed BAM files: Aligned, filtered, deduplicated, and indexed BAM files.
+
+Merged BAM files: If multiple replicates are provided.
+
+STAR indices: Genome reference indices for alignment.
+
+---
 ## **Example Commands**
 ```sh
 python procap_correlation.py -f1 file1.bw -f2 file2.bw --bin_size 1000 --chrom_sizes_file chrom.sizes
