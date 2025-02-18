@@ -135,11 +135,6 @@ conda env create -f environment.yml
 conda activate procap_preprocessing
 ```
 
-To export the environment after updates:
-```sh
-conda env export > environment.yml
-```
-
 ---
 
 ## **Dependencies**
