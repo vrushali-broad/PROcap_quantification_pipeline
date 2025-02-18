@@ -91,10 +91,15 @@ conda env export > environment.yml
 Run the pipeline with:
 ```sh
 python PROcap_processing_pipeline.py \
-    -f1 read1.fastq.gz -f2 read2.fastq.gz \
-    -o output_dir -p sample_prefix -g genome_dir \
-    --umi_length 6 --threads 48 --adapter_seq1 TGGAATTCTCGGGTGCCAAGG \
-    --adapter_seq2 GATCGTCGGACTGTAGAACTCTGAAC --run_pints_preprocess
+    -f1 read1.fastq.gz \
+    -f2 read2.fastq.gz \
+    -o output_dir \
+    -p sample_prefix \
+    -g genome_dir \
+    --umi_length 6 --threads 48 \
+    --adapter_seq1 TGGAATTCTCGGGTGCCAAGG \
+    --adapter_seq2 GATCGTCGGACTGTAGAACTCTGAAC \
+    --run_pints_preprocess ## optional
 ```
 
 ---
