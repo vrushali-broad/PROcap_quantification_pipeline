@@ -125,6 +125,37 @@ python PROcap_processing_pipeline.py \
 ```sh
 python procap_correlation.py -f1 file1.bw -f2 file2.bw --bin_size 1000 --chrom_sizes_file chrom.sizes
 ```
+---
+
+## **Batch Processing with Wrapper Script**
+### **Automating PROcap Quantification on Multiple FASTQ Files**
+
+A **wrapper script** (`run_procap_wrapper.py`) is included to automate the **PROcap Quantification Pipeline** by identifying paired FASTQ files in a directory and processing them in **batch mode**.
+
+### **Features of the Wrapper Script**
+- **Automatically detects paired-end FASTQ files** based on `_1.fq.gz` and `_2.fq.gz` naming conventions.
+- **Runs PROcap Quantification Pipeline** for each detected pair.
+- **Logs processing information** (`procap_wrapper.log`) including sample names and file paths.
+- **Handles missing pairs gracefully** by skipping unpaired files.
+
+---
+
+### **Wrapper Script Usage**
+Run the wrapper script using the following command:
+
+```sh
+python run_procap_wrapper.py     -d /workdir/vdf8/Data_fqs/     -o /workdir/vdf8/Results/     -g /workdir/vdf8/Genome/     -t 48
+```
+
+---
+
+### **Command-Line Arguments**
+| Argument | Description |
+|----------|-------------|
+| `-d`, `--fastq_dir` | Directory containing FASTQ files (Required). |
+| `-o`, `--output_dir` | Output directory for results (Default: `Results/`). |
+| `-g`, `--genome_dir` | Directory containing genome reference files (Default: `genome_dir/`). |
+| `-t`, `--threads` | Number of threads to use (Default: `48`). |
 
 ---
 
@@ -134,7 +165,6 @@ To recreate the **exact environment**, use the provided `environment.yml`:
 conda env create -f environment.yml
 conda activate procap_preprocessing
 ```
-
 ---
 
 ## **Dependencies**
