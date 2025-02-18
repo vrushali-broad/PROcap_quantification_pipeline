@@ -150,9 +150,9 @@ Run the wrapper script using the following command:
 
 ```sh
 python run_procap_wrapper.py   \
-      -d /workdir/vdf8/Data_fqs/  \
-      -o /workdir/vdf8/Results/  \
-      -g /workdir/vdf8/Genome/  \
+      -d Data_fqs/  \
+      -o Results/  \
+      -g Genome/  \
       -t 48
 ```
 
