@@ -125,10 +125,10 @@ python PROcap_processing_pipeline.py \
 ## **Example Commands**
 ```sh
 python procap_correlation.py \
--f1 file1.bw -f2 \
-file2.bw \
---bin_size 1000 \
---chrom_sizes_file chrom.sizes
+    -f1 file1.bw \
+    -f2 file2.bw \
+    --bin_size 1000 \
+    --chrom_sizes_file chrom.sizes
 ```
 ---
 
@@ -150,10 +150,10 @@ Run the wrapper script using the following command:
 
 ```sh
 python run_procap_wrapper.py   \
-  -d /workdir/vdf8/Data_fqs/  \
-  -o /workdir/vdf8/Results/  \
-  -g /workdir/vdf8/Genome/  \
-  -t 48
+      -d /workdir/vdf8/Data_fqs/  \
+      -o /workdir/vdf8/Results/  \
+      -g /workdir/vdf8/Genome/  \
+      -t 48
 ```
 
 ---
