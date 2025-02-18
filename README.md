@@ -40,6 +40,13 @@ The **PRO-cap Quantification Pipeline** is designed for the preprocessing of PRO
 - **Python Libraries**:
   - argparse, subprocess, os, logging, requests, tqdm, gzip, shutil, pyfaidx, datetime
 
+### Setting up the environment
+To install the dependencies, create and activate the environment:
+```sh
+conda env create -f environment.yml
+conda activate procap_env
+```
+
 ## Usage
 Run the script as follows:
 ```sh
