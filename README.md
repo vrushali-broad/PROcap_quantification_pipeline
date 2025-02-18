@@ -124,7 +124,7 @@ python procap_correlation.py -f1 file1.bw -f2 file2.bw --bin_size 1000 --chrom_s
 To recreate the **exact environment**, use the provided `environment.yml`:
 ```sh
 conda env create -f environment.yml
-conda activate procap_env
+conda activate procap_preprocessing
 ```
 
 To export the environment after updates:
