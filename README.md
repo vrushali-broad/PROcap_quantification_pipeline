@@ -63,7 +63,7 @@ cd PROcap_quantification_pipeline
 To install dependencies:
 ```sh
 conda env create -f environment.yml
-conda activate procap_env
+conda activate procap_preprocessing
 ```
 To update the environment later:
 ```sh
