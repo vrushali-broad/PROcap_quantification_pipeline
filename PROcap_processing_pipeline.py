@@ -16,6 +16,8 @@ Key Features:
 - BAM file processing: filtering, deduplication, and indexing.
 - Handling of multiple replicates with automatic merging of BAM files.
 - Generation of BedGraph and BigWig files for 5' and 3' strand ends.
+- Normalization support for BedGraph files (CPM, RPM, BPM, RPKM).
+- RPKM normalization using gene feature lengths from a BED file.
 - Optional bigwig generation using PINTS Visualizer.
 
 Pipeline Overview:
@@ -31,9 +33,12 @@ Pipeline Overview:
    - Remove PCR duplicates using UMI-tools.
    - Separate and generate strand-specific BAM files for read1 (3') and read2 (5').
 7. Merge replicates into a single BAM file for downstream analysis.
-8. Generate BedGraph and BigWig files for visualization of transcription start sites (TSS) and pause sites.
-9. (Optional) Run PINTS Visualizer for additional data exploration.
-10. Cleanup intermediate files to save storage.
+8. Generate BedGraph files and normalize signals:
+   - CPM (Counts Per Million), RPM (Reads Per Million), BPM (Bins Per Million).
+   - RPKM (Reads Per Kilobase per Million) using feature lengths from a BED file.
+9. Convert normalized BedGraph files to BigWig format.
+10. (Optional) Run PINTS Visualizer for additional data exploration.
+11. Cleanup intermediate files to save storage.
 
 Main Functions:
 - setup_logging: Sets up logging to file with timestamp.
@@ -52,6 +57,8 @@ Main Functions:
 - remove_pcr_duplicates: Removes PCR duplicates using UMI-tools.
 - generate_end_bams: Generates BAM files for read1 (pause site) and read2 (initiation) from paired-end reads.
 - fetch_chromosome_sizes: Fetches chromosome sizes from a genome FASTA file.
+- normalize_bedgraph: Normalizes BedGraph data (CPM, RPM, BPM, RPKM).
+- parse_bed_file: Reads feature lengths from a BED file for RPKM normalization.
 - safe_file_move: Safely moves files from source to destination.
 - generate_bedgraph_and_bigwig: Generates BedGraph and BigWig files from BAM files.
 - cleanup_files: Removes specified files from the filesystem.
@@ -62,14 +69,15 @@ Main Functions:
 Dependencies:
 - Python 3.7+
 - External tools: FastQC, Fastp, STAR, samtools, bedtools, umi_tools, bedGraphToBigWig
-- Python libraries: argparse, subprocess, os, logging, requests, tqdm, gzip, shutil, pyfaidx, datetime
+- Python libraries: argparse, subprocess, os, logging, requests, tqdm, gzip, shutil, pyfaidx, datetime, numpy
 
 Usage:
     python PROcap_processing_pipeline.py \
         -f1 read1.fastq.gz -f2 read2.fastq.gz \
         -o output_dir -p sample_prefix -g genome_dir \
         --umi_length 6 --threads 48 --adapter_seq1 TGGAATTCTCGGGTGCCAAGG \
-        --adapter_seq2 GATCGTCGGACTGTAGAACTCTGAAC --run_pints
+        --adapter_seq2 GATCGTCGGACTGTAGAACTCTGAAC --normalization RPKM \
+        --features_file genes.bed --run_pints_preprocess
 
 Arguments:
     -f1, --fastq1        Input FASTQ file for read 1.
@@ -80,10 +88,13 @@ Arguments:
     -u, --umi_length     Length of UMI to extract (default: 6).
     -t, --threads        Number of threads to use (default: 48).
     --spike_ins          Include spike-in references (e.g., Drosophila genome).
+    --normalization      Normalization method for BedGraph files (CPM, RPM, BPM, RPKM) (default: CPM).
+    --features_file      Path to a BED file for RPKM normalization (required for RPKM).
     --run_pints_preprocess         Run PINTS visualizer on processed BAM files.
 
 Outputs:
 - BigWig files for 5' and 3' strand ends.
+- Normalized BedGraph files (CPM, RPM, BPM, or RPKM).
 - Quality reports, trimmed FASTQ files, and aligned BAM files.
 - Merged BAM files for replicate handling.
 - STAR indices, deduplicated BAM files, and filtered outputs.
@@ -98,6 +109,7 @@ import subprocess
 import os
 import requests
 import logging
+import numpy as np
 from tqdm import tqdm
 import re
 import gzip
@@ -792,7 +804,89 @@ def safe_file_move(source, destination):
     except Exception as e:
         logging.error(f"Failed to move {source} to {destination}: {str(e)}")
 
-def generate_bedgraph_and_bigwig(bam_file, output_prefix, genome_size_file, end='5', threads=4):
+def parse_bed_file(bed_file):
+    """
+    Parse a BED file to extract feature lengths for RPKM normalization using NumPy vectorization.
+    
+    Parameters:
+    bed_file (str): Path to the BED file containing gene coordinates.
+    
+    Returns:
+    dict: Dictionary mapping chromosome region keys (chrom, start, end) to feature lengths (bp).
+    """
+    data = np.loadtxt(bed_file, dtype=str, delimiter='\t', usecols=(0, 1, 2))
+    chroms = data[:, 0]
+    starts = data[:, 1].astype(int)
+    ends = data[:, 2].astype(int)
+    feature_lengths = {(chrom, start, end): end - start for chrom, start, end in zip(chroms, starts, ends)}
+    return feature_lengths
+
+def normalize_bedgraph(file, norm_type, is_minus_strand=False, features_file=None):
+    """
+    Normalize a BedGraph file by adjusting coverage values according to the specified normalization method.
+    
+    Parameters:
+    file (str): Path to the input BedGraph file.
+    norm_type (str): Normalization method. Options include:
+        - 'CPM': Counts Per Million - normalizes by total read depth scaled to 1 million.
+        - 'RPM': Reads Per Million - equivalent to CPM, used interchangeably.
+        - 'BPM': Bins Per Million - normalizes by total read depth scaled to 1 billion.
+        - 'RPKM': Reads Per Kilobase per Million - normalizes read depth considering feature length.
+    is_minus_strand (bool): Whether the BedGraph represents the minus strand.
+        - If True, ensures that normalized values remain negative.
+        - If False, values remain positive.
+    features_file(str, optional): Path to a BED file containing gene coordinates for RPKM normalization.
+        - If None, RPKM normalization cannot be performed.
+    
+    Returns:
+    str: Path to the normalized BedGraph file.
+    
+    The function reads the BedGraph file, normalizes the coverage column using the chosen method,
+    and preserves negative values for the minus strand to maintain strand-specific signal polarity.
+    """
+    data = np.loadtxt(file, dtype=object, delimiter='\t')
+    chroms = data[:, 0]
+    starts = data[:, 1].astype(int)
+    ends = data[:, 2].astype(int)
+    coverage = data[:, 3].astype(float)
+    
+    # Compute total reads
+    total_reads = np.sum(np.abs(coverage))  # Use absolute values to maintain negative values
+
+    if total_reads == 0:
+        logging.warning("Total reads are zero, skipping normalization.")
+        return file
+
+    # Load feature lengths from BED file if RPKM is requested
+    feature_lengths = None
+    if norm_type == 'RPKM':
+        if features_file is None:
+            raise ValueError("RPKM normalization requires a features file. Please provide a valid --features_file.")
+        feature_lengths = parse_bed_file(features_file)
+
+    # Apply Normalization
+    if norm_type in ['CPM', 'RPM']:
+        coverage = (coverage / total_reads) * 1e6 # Normalize to per million reads
+    elif norm_type == 'BPM':
+        coverage = (coverage / total_reads) * 1e9 # Normalize to per billion reads
+    elif norm_type == 'RPKM' and feature_lengths is not None:
+        # Vectorized lookup for region lengths
+        region_keys = np.core.defchararray.add(np.core.defchararray.add(chroms, ':'), starts.astype(str))
+        region_lengths = np.array([feature_lengths.get(key, end - start) for key, start, end in zip(region_keys, starts, ends)])
+        
+        # Avoid division by zero
+        valid_regions = region_lengths > 0
+        coverage[valid_regions] = (coverage[valid_regions] / (region_lengths[valid_regions] / 1000)) / (total_reads / 1e6)
+    
+    if is_minus_strand:
+        coverage = -np.abs(coverage)  # Preserve negative values for minus strand
+    
+    data[:, 3] = coverage.astype(str)
+    norm_file = f"{file}_{norm_type}.bedgraph"
+    np.savetxt(norm_file, data, fmt='%s', delimiter='\t')
+    return norm_file
+
+def generate_bedgraph_and_bigwig(bam_file, output_prefix, genome_size_file, end='5', threads=4, normalize=False, normalization='CPM', features_file=None):
     """
     Generate BedGraph files from a BAM file and convert them to BigWig format for both strands.
     Only generates files if they do not already exist.
@@ -803,12 +897,14 @@ def generate_bedgraph_and_bigwig(bam_file, output_prefix, genome_size_file, end=
     genome_size_file (str): Path to the genome size file required for BigWig conversion.
     threads (int): Number of threads to use for processing.
     end (str): '5' or '3', indicating the end for processing.
+    normalize (bool): Whether to normalize the BedGraph file.
+    normalization (str): Normalization method ('CPM', 'RPM', 'BPM', 'None').
     """
     # Define output file paths
     plus_bedgraph_file = f"{output_prefix}_plus.bedgraph"
     minus_bedgraph_file = f"{output_prefix}_minus.bedgraph"
-    plus_bigwig_file = f"{output_prefix}_pl.bw"
-    minus_bigwig_file = f"{output_prefix}_mn.bw"
+    plus_bigwig_file = f"{output_prefix}_pl_{normalization}.bw" if normalize else f"{output_prefix}_pl.bw"
+    minus_bigwig_file = f"{output_prefix}_mn_{normalization}.bw" if normalize else f"{output_prefix}_mn.bw"
 
     # Check if BigWig files already exist
     if os.path.exists(plus_bigwig_file) and os.path.exists(minus_bigwig_file):
@@ -843,9 +939,18 @@ def generate_bedgraph_and_bigwig(bam_file, output_prefix, genome_size_file, end=
     subprocess.run(awk_cmd, shell=True, check=True)
     os.replace(minus_bedgraph_temp, minus_bedgraph.name)
 
+    # Normalize BedGraph files if required
+    if normalize and normalization in ['CPM', 'RPM', 'BPM', 'RPKM']:
+        logging.info(f"Normalizing BedGraph using {normalization}...")
+        if normalization == 'RPKM' and not features_file:
+            raise ValueError("RPKM normalization requires a features file. Please provide a valid --features_file.")
+
+        plus_bedgraph = normalize_bedgraph(plus_bedgraph, normalizationis_minus_strand=False, features_file=features_file)
+        minus_bedgraph = normalize_bedgraph(minus_bedgraph, normalization, is_minus_strand=True, features_file=features_file)
+
     # Move temporary BedGraph files to final locations
-    safe_file_move(plus_bedgraph.name, plus_bedgraph_file)
-    safe_file_move(minus_bedgraph.name, minus_bedgraph_file)
+    safe_file_move(plus_bedgraph, plus_bedgraph_file)
+    safe_file_move(minus_bedgraph, minus_bedgraph_file)
 
     # Convert BedGraph to BigWig
     cmd_bigwig_plus = ['bedGraphToBigWig', plus_bedgraph_file, genome_size_file, plus_bigwig_file]
@@ -1002,48 +1107,7 @@ def compute_fragment_size(bam_file, output_histogram, threads=32):
     except subprocess.CalledProcessError as e:
         logging.error(f"Error while running bamPEFragmentSize: {e}")
         return False
-
-def bam_to_bigwig(bam_file, bigwig_file, normalization="CPM", bin_size=1, threads=8):
-    """
-    Convert a BAM file to a BigWig file using bamCoverage with CPM normalization.
-
-    Parameters:
-    - bam_file (str): Path to the input BAM file.
-    - bigwig_file (str): Path to the output BigWig file.
-    - normalization (str): Normalization method ('CPM', 'RPKM', 'BPM', etc.). Default is 'CPM'.
-    - bin_size (int): Bin size for smoothing. Default is 1 (base-pair resolution).
-    - threads (int): Number of threads to use. Default is 8.
-
-    Returns:
-    - bool: True if BigWig file was created or already exists, False if an error occurred.
-    """
-    # Check if output BigWig file already exists
-    if os.path.exists(bigwig_file):
-        logging.info(f"BigWig file already exists: {bigwig_file}. Skipping conversion.")
-        return True
-
-    # Ensure output directory exists
-    os.makedirs(os.path.dirname(bigwig_file), exist_ok=True)
-
-    # Construct the command
-    cmd = [
-        "bamCoverage",
-        "-b", bam_file,
-        "-o", bigwig_file,
-        "--normalizeUsing", normalization,
-        "--binSize", str(bin_size),
-        "-p", str(threads)
-    ]
-
-    # Run the command
-    try:
-        logging.info(f"Generating BigWig file: {bigwig_file}")
-        subprocess.run(cmd, check=True)
-        logging.info(f"BigWig file created successfully: {bigwig_file}")
-        return True
-    except subprocess.CalledProcessError as e:
-        logging.error(f"Error generating BigWig file: {e}")
-        return False
+    
 
 def sort_bam(input_bam, output_bam=None, threads=8):
     """
@@ -1164,9 +1228,10 @@ def parse_args():
     parser.add_argument('--normalize_bws', action='store_true', help='Save normalized reads, defaults to CPM.')
     
     ## Bam to bigwig conversion
-    parser.add_argument('-n', '--normalization', choices=['CPM', 'RPM', 'BPM', 'None'], default='CPM',
+    parser.add_argument('-n', '--norm_type', choices=['CPM', 'RPM', 'BPM', 'None'], default='CPM',
                         help="Normalization method. Options: 'CPM', 'RPKM', 'BPM', or 'None'. Default: 'CPM'.")
     parser.add_argument('--bin_size', type=int, default=1, help='Bin size for smoothing. Default: 1 (base-pair resolution).')
+    parser.add_argument("--features_file", type=str, default=None, help="Path to features file for RPKM normalization (required for RPKM method).")
     
     return parser.parse_args()
 
@@ -1349,16 +1414,10 @@ def main():
     generate_end_bams(final_bam, bam_read1, bam_read2, threads=args.threads)
 
     ## Generate BigWig files (second read is initiation)
-    generate_bedgraph_and_bigwig(bam_read2, os.path.join(output_dir, args.prefix), genome_size_file, end='5', threads=args.threads)
-    generate_bedgraph_and_bigwig(bam_read1, os.path.join(output_dir, args.prefix + '_3p'), genome_size_file, end='5', threads=args.threads)
+    features_file=args.features_file if args.norm_type == 'RPKM' else None
+    generate_bedgraph_and_bigwig(bam_read2, os.path.join(output_dir, args.prefix), genome_size_file, end='5', threads=args.threads, normalize=args.normalize_bws, normalization=args.norm_type, features_file=features_file)
+    generate_bedgraph_and_bigwig(bam_read1, os.path.join(output_dir, args.prefix + '_3p'), genome_size_file, end='5', threads=args.threads, normalize=args.normalize_bws, normalization=args.norm_type, features_file=features_file)
 
-    ## Save normalized BigWig files
-    if args.normalize_bws:
-        five_prime_norm_file = final_bam.replace(".bam", "_norm_5p.bw")
-        three_prime_norm_file = final_bam.replace(".bam", "_norm_3p.bw")
-        bam_to_bigwig(bam_read2, five_prime_norm_file, normalization=args.normalization, bin_size=args.bin_size, threads=args.threads)
-        bam_to_bigwig(bam_read1, three_prime_norm_file, normalization=args.normalization, bin_size=args.bin_size, threads=args.threads)
-    
     # # Call cleanup with intermediate files
     # prefix = args.prefix
     # # Define intermediate files to remove
