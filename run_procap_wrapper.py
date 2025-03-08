@@ -37,12 +37,15 @@ def run_procap_pipeline(fastq1, fastq2, output_dir, genome_dir, sample, args):
         "-f1", fastq1, "-f2", fastq2,
         "-o", output_dir,
         "-p", sample,
-        "-g", genome_dir
+        "-g", genome_dir,
+        "--normalize_bws",
+        "-t", str(args.threads)  # Pass thread count
     ]
 
     logging.info(f"Processing sample: {sample}")
     logging.info(f"FASTQ1: {fastq1}")
     logging.info(f"FASTQ2: {fastq2}")
+    logging.info(f"Using {args.threads} threads")
 
     print(f"Running PROcap pipeline for: {sample}")
     subprocess.run(cmd, check=True)
