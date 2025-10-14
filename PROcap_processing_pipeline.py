@@ -903,6 +903,7 @@ def generate_bedgraph_and_bigwig(bam_file, output_prefix, genome_size_file, end=
     # Define output file paths
     plus_bedgraph_file = f"{output_prefix}_plus.bedgraph"
     minus_bedgraph_file = f"{output_prefix}_minus.bedgraph"
+    
     plus_bigwig_file = f"{output_prefix}_pl_{normalization}.bw" if normalize else f"{output_prefix}_pl.bw"
     minus_bigwig_file = f"{output_prefix}_mn_{normalization}.bw" if normalize else f"{output_prefix}_mn.bw"
 
@@ -915,6 +916,13 @@ def generate_bedgraph_and_bigwig(bam_file, output_prefix, genome_size_file, end=
     plus_bedgraph = tempfile.NamedTemporaryFile(delete=False)
     minus_bedgraph = tempfile.NamedTemporaryFile(delete=False)
 
+    # plus_tmp = tempfile.NamedTemporaryFile(delete=False)
+    # minus_tmp = tempfile.NamedTemporaryFile(delete=False)
+    
+    # # Use the .name property (string paths)
+    # plus_bedgraph = plus_tmp.name
+    # minus_bedgraph = minus_tmp.name
+
     # Set BedTools commands based on read type
     if 'read2' in bam_file:  # Read 2 is initiation
         cmd_plus_bedgraph = ['bedtools', 'genomecov', '-ibam', bam_file, '-bg', '-strand', '+', '-5' if end == '5' else '-3']
@@ -926,12 +934,12 @@ def generate_bedgraph_and_bigwig(bam_file, output_prefix, genome_size_file, end=
     # Generate BedGraph for plus strand
     logging.info("Generating BedGraph for plus strand...")
     with open(plus_bedgraph.name, 'w') as f:
-        subprocess.run(cmd_plus_bedgraph, stdout=f)
+        subprocess.run(cmd_plus_bedgraph, stdout=f, check=True)
 
     # Generate BedGraph for minus strand
     logging.info("Generating BedGraph for minus strand...")
     with open(minus_bedgraph.name, 'w') as f:
-        subprocess.run(cmd_minus_bedgraph, stdout=f)
+        subprocess.run(cmd_minus_bedgraph, stdout=f, check=True)
 
     # Convert minus strand values to negative using awk
     minus_bedgraph_temp = f"{minus_bedgraph.name}_neg"
@@ -945,8 +953,12 @@ def generate_bedgraph_and_bigwig(bam_file, output_prefix, genome_size_file, end=
         if normalization == 'RPKM' and not features_file:
             raise ValueError("RPKM normalization requires a features file. Please provide a valid --features_file.")
 
-        plus_bedgraph = normalize_bedgraph(plus_bedgraph, normalizationis_minus_strand=False, features_file=features_file)
+        plus_bedgraph = normalize_bedgraph(plus_bedgraph, normalization, is_minus_strand=False, features_file=features_file)
         minus_bedgraph = normalize_bedgraph(minus_bedgraph, normalization, is_minus_strand=True, features_file=features_file)
+    else:
+        # Convert tempfile objects to their paths if normalization is skipped
+        plus_bedgraph = plus_bedgraph.name if hasattr(plus_bedgraph, "name") else plus_bedgraph
+        minus_bedgraph = minus_bedgraph.name if hasattr(minus_bedgraph, "name") else minus_bedgraph
 
     # Move temporary BedGraph files to final locations
     safe_file_move(plus_bedgraph, plus_bedgraph_file)
